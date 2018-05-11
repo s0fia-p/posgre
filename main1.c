@@ -1,11 +1,18 @@
 #include <gtk/gtk.h>
 #include <postgresql/libpq-fe.h>
 
+static void
+exit_nicely(PGconn *conn)
+{
+    PQfinish(conn);
+    exit(1);
+}
+
 GtkWidget *entry1, *entry2;
 GtkWidget *text1;
-char a[4][100]={"Tolstoy", "Tolstoy", "Pushkin", "Bulgakov"},
-     b[4][100]={"War and Peace", "Anna Karenina", "Ruslan and Ludmila", "THe Master and Margarita"};
-int c[4]={10, 2, 0, 7};
+char a[4][100],
+     b[4][100]};
+int c[4];
 
 
 
@@ -70,11 +77,69 @@ void bo (GtkWidget *widget)
 
 int main(int argc, char *argv[])
 {
+  const char *conninfo;
+  PGconn     *conn;
+  PGresult   *res;
+  int         nFields;
+  int         i,
+              j;
+
   GtkWidget *window, *frame;
   GtkWidget *lbooking, *booking;
   GtkWidget *label1, *label2;
   GtkWidget *okb1, *lokb1, *okb2, *lokb2;
   GtkWidget *qb, *lqb;
+
+  conninfo = "dbname = postgres";
+  conn = PQconnectdb(conninfo);
+  if (PQstatus(conn) != CONNECTION_OK)
+  {
+      exit_nicely(conn);
+  }
+  res = PQexec(conn,
+               "SELECT pg_catalog.set_config('search_path', '', false)");
+  if (PQresultStatus(res) != PGRES_COMMAND_OK)
+  {
+      PQclear(res);
+      exit_nicely(conn);
+  }
+  PQclear(res);
+  res = PQexec(conn, "BEGIN");
+  if (PQresultStatus(res) != PGRES_COMMAND_OK)
+  {
+      PQclear(res);
+      exit_nicely(conn);
+  }
+  PQclear(res);
+  res = PQexec(conn, "DECLARE myportal CURSOR FOR select * from pg_database");
+  if (PQresultStatus(res) != PGRES_COMMAND_OK)
+  {
+      PQclear(res);
+      exit_nicely(conn);
+  }
+  PQclear(res);
+  res = PQexec(conn, "FETCH ALL in myportal");
+  if (PQresultStatus(res) != PGRES_TUPLES_OK)
+  {
+      PQclear(res);
+      exit_nicely(conn);
+  }
+  nFields = PQnfields(res);
+  for (i = 0; i < 4; i++)
+      a[i]=PQfname(res, i);
+  for (i = 0; i < PQntuples(res); i++)
+  {
+          b[i]=PQgetvalue(res, i, 0);
+          c[i]=PQgetvalue(res, i, 1);
+  }
+  PQclear(res);
+  res = PQexec(conn, "CLOSE myportal");
+  PQclear(res);
+  res = PQexec(conn, "END");
+  PQclear(res);
+  PQfinish(conn);
+
+
 
   PangoFontDescription *myfont = pango_font_description_from_string("Arial 26");
   gtk_init(&argc, &argv);
